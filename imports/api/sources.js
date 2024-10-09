@@ -2,6 +2,7 @@ import { Mongo } from 'meteor/mongo';
 
 import { getAccessToken, downloadAppIndex } from '/imports/lib/sandstorm';
 import { SandstormInfo } from '/imports/api/sandstorm';
+import { selectIncludedApps } from '/imports/lib/selectIncludedApps';
 
 export const CanonicalSource = 'https://app-index.sandstorm.io/';
 export const Sources = new Mongo.Collection('sources');
@@ -26,11 +27,17 @@ export const DownloadStates = [
 //
 // apps: [AppSchema]
 //
+// blacklist: [appId]
+//
 // NB:  Sources do not need their own url.
 // The request is made with the canonical source,
 //  then the sandstorm proxy maps the Auth (Bearer) token to the actual specified
 // source.
 
+export function getIncludedApps(sourceId) {
+  const source = Sources.findOne(sourceId);
+  return selectIncludedApps(source.apps, source);
+}
 
 if (Meteor.isServer) {
   Meteor.publish("sources", function() {
