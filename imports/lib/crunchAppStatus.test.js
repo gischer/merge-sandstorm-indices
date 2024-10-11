@@ -10,7 +10,7 @@ describe('crunchAppStatus', function() {
 	var app = {
 		appId: 'appId',
 		name: 'Test App',
-		appVersionNumber: 42,
+		versionNumber: 42,
 		sourceId: "source1Id",
 	}
 	var fetchedFile0;
@@ -25,9 +25,9 @@ describe('crunchAppStatus', function() {
 
 	beforeEach(function () {
 		StubCollections.stub([Files]);
-		fetchedFile0 = {_id: 'fetchedFile0', appId: app.appId, sourceId: "source1Id", appVersionNumber: 42, status: "Fetched"};
-		fetchedFile1 = {_id: 'fetchedFile1', appId: app.appId, sourceId: 'source1Id', appVersionNumber: 42, status: "Fetched"};
-		fetchedFile2 = {_id: 'fetchedFile2', appId: app.appId, sourceId: 'source1Id', appVersionNumber: 42, status: "Fetched"};
+		fetchedFile0 = {_id: 'fetchedFile0', appId: app.appId, sourceId: "source1Id", appVersionNumber: 42, status: "Ready"};
+		fetchedFile1 = {_id: 'fetchedFile1', appId: app.appId, sourceId: 'source1Id', appVersionNumber: 42, status: "Ready"};
+		fetchedFile2 = {_id: 'fetchedFile2', appId: app.appId, sourceId: 'source1Id', appVersionNumber: 42, status: "Ready"};
 		pendingFile0 = {_id: 'pendingFile0', appId: app.appId, sourceId: 'source1Id', appVersionNumber: 42, status: "Fetching"};
 		storingFile0 = {_id: 'storingFile0', appId: app.appId, sourceId: 'source1Id', appVersionNumber: 42, status: "Storing"};
 		absentFile0 = {_id: 'absentFile0', appId: app.appId, sourceId: 'source1Id', appVersionNumber: 42, status: 'Absent'};

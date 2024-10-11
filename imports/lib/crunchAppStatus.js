@@ -9,18 +9,18 @@ export const ASSET_HAS_ERRORS = "Errors";
 
 export function crunchAppStatus(app) {
   function statusReducer(accum, file) {
-      if (accum === 'In progress') return 'In progress';
-      if (accum === 'Errors') return 'Errors';
-      if (accum === 'Needs update') return 'Needs update';
-      if (accum === 'Ready') {
-        if (file.status === 'Fetching' || file.status === 'Storing') return 'In progress';
-        if (file.status === 'Absent') return 'Needs update';
-        if (file.status === 'Fetched') return 'Ready';
-        return 'Errors';
+      if (accum === ASSET_IN_PROGRESS) return ASSET_IN_PROGRESS;
+      if (accum === ASSET_HAS_ERRORS) return ASSET_HAS_ERRORS;
+      if (accum === ASSET_NEEDS_UPDATE) return ASSET_NEEDS_UPDATE;
+      if (accum === ASSET_READY) {
+        if (file.status === 'Fetching' || file.status === 'Storing') return ASSET_IN_PROGRESS;
+        if (file.status === 'Absent') return ASSET_NEEDS_UPDATE;
+        if (file.status === ASSET_READY) return ASSET_READY;
+        return ASSET_HAS_ERRORS;
       }
   }
 
-  const files = Files.find({appId: app.appId, sourceId: app.sourceId, appVersionNumber: app.appVersionNumber}).fetch();
+  const files = Files.find({appId: app.appId, sourceId: app.sourceId, appVersionNumber: app.versionNumber}).fetch();
   if (files.length == 0) {
     console.log(`${app.name} is new`);
     return "Needs update";
