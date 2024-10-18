@@ -12,7 +12,10 @@ Router.route('/', function() {
   this.render('Home');
 });
 
-import '/client/pages/test.html';
-Router.route('/test', {
-  template: 'Test',
+import '/client/pages/sources/sources';
+Router.route('/sources', function() {
+  this.layout('PrimaryLayout', {
+    data: function() {return {active: 'sources'}}
+  });
+  this.render('Sources');
 })
