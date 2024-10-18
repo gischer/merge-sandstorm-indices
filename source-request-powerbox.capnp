@@ -1,6 +1,6 @@
 # sot-images-powerbox.capnp
 
-@0xcfccbfe520edfaf1;
+@0xb753a7375769b9a1;
 
 using Powerbox = import "/sandstorm/powerbox.capnp";
 using ApiSession = import "/sandstorm/api-session.capnp".ApiSession;
@@ -8,7 +8,7 @@ using ApiSession = import "/sandstorm/api-session.capnp".ApiSession;
 # Tag value
 
 const sourceIndexTagValue :ApiSession.PowerboxTag = (
-  canonicalUrl = "https://sot-images.sweetvinesystems.com",
+  canonicalUrl = "https://app-index.sandstorm.io",
   # We're requesting an API which will serve images specifically for the game Secrets of Toanium
 );
 
