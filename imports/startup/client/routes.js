@@ -1,20 +1,18 @@
-import { FlowRouter } from 'meteor/ostrio:flow-router-extra';
+
 
 // Import needed templates
-import '../../ui/layouts/body/body.js';
-import '../../ui/pages/home/home.js';
-import '../../ui/pages/not-found/not-found.js';
+import '/imports/ui/layouts/primaryLayout.js';
 
 // Set up all routes in the app
-FlowRouter.route('/', {
-  name: 'App.home',
-  action() {
-    this.render('App_body', 'App_home');
-  },
+import '/client/pages/home/home';
+Router.route('/', function() {
+  this.layout('PrimaryLayout', {
+    data: function() {return {active: 'home'}},
+  });
+  this.render('Home');
 });
 
-FlowRouter.notFound = {
-  action() {
-    this.render('App_body', 'App_notFound');
-  },
-};
+import '/client/pages/test.html';
+Router.route('/test', {
+  template: 'Test',
+})

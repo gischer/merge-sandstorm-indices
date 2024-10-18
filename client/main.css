@@ -1,0 +1,13 @@
+body {
+  padding: 10px;
+  font-family: sans-serif;
+}
+
+.void-color {
+  color: #0f0f00;
+  text-shadow: 1px 1px 1px #ccc;
+}
+
+.describe-text {
+  font-size: 80%;
+}
