@@ -17,7 +17,12 @@ export function getSandstormInfo(context) {
     console.log(`Session Id is ${sandstormInfo.sessionId}`)
     return sandstormInfo;
   } else {
-    return {};
+    return {
+      basePath: '/',
+      grainName: null,
+      sessionId: null,
+      host: 'localhost',
+    };
   }
 }
 

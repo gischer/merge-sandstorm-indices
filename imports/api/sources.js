@@ -50,6 +50,7 @@ Meteor.methods({
     const id = Sources.insert({claimToken: claimtoken, name: name, downloadStatus: 'Initializing'});
     const source = Sources.findOne(id);
     const info = SandstormInfo.findOne();
+    console.log(info);
     getAccessToken(source, info)
     .then((response) => {
       source.accessToken = response.data.cap;

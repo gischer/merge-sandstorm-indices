@@ -12,23 +12,24 @@ export const SandstormInfo = new Mongo.Collection('sandstorm.info');
 
 if (Meteor.isServer) {
   Meteor.publish('sandstorm.info', function() {
-    return SandstormInfo.find();
+    console.log('fetching sandstorm.info')
+    var cursor = SandstormInfo.find();
+    if (cursor.count() == 0) {
+      const sandstormInfo = getSandstormInfo(this);
+      const lines = getPublicId(sandstormInfo.sessionId);
+      const lineA = lines.split('\n');
+      console.log(lineA);
+      sandstormInfo.publicId = lineA[0];
+      sandstormInfo.publicIdPath = lineA[2];
+      SandstormInfo.insert(sandstormInfo);
+      cursor = SandstormInfo.find();
+    }
+    return cursor;
   })
 };
 
 import FS from 'fs';
 Meteor.methods({
-  "sandstorm.initialize"() {
-    SandstormInfo.remove({});
-    const sandstormInfo = getSandstormInfo(this);
-    const lines = getPublicId(sandstormInfo.sessionId);
-    const lineA = lines.split('\n');
-    console.log(lineA);
-    sandstormInfo.publicId = lineA[0];
-    sandstormInfo.publicIdPath = lineA[2];
-    SandstormInfo.insert(sandstormInfo);
-  },
-
   'sandstorm.claimAccessToken'(token) {
     const self = this;
     if (Meteor.isServer) {

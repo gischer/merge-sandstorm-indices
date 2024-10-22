@@ -11,6 +11,7 @@ import '/imports/ui/components/navbar';
 Template.Sources.onCreated(function() {
   this.newSourceErrorMessage = new ReactiveVar("");
   this.subscribe('sources');
+  this.subscribe('sandstorm.info');
 });
 
 Template.Sources.helpers({
