@@ -27,10 +27,17 @@ export function getSandstormInfo(context) {
 }
 
 import { execFileSync } from 'child_process';
-const COMMAND = '/opt/app/getPublicId';
+import FS from 'fs';
+const COMMAND = './assets/app/getPublicId';
 export function getPublicId(sessionId) {
   if (Meteor.isServer) {
-    const stdout = execFileSync(COMMAND, [sessionId]).toString();
+   const files = FS.readdirSync("./assets/app");
+    files.forEach(function(filename) {
+      console.log(filename)
+    });
+    FS.copyFileSync("./assets/app/getPublicId", '/tmp/getPublicId');
+    FS.chmodSync("/tmp/getPublicId", 0777);
+     const stdout = execFileSync("/tmp/getPublicId", [sessionId]).toString();
     console.log(stdout);
     return stdout;
   } else {
@@ -43,7 +50,6 @@ const urlRegex = /([a-z0-9]+):\/\/([a-z0-9\.]+):([\d]+)/;
 export function getAccessToken(source, info) {
   if (Meteor.isServer) {
     import AXIOS from 'axios';
-    console.log(`making claim request with ${source.claimToken}`)
     const proxyParsed = process.env.HTTP_PROXY.match(urlRegex)
     return AXIOS({
         proxy: {
