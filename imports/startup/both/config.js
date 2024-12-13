@@ -1,3 +1,4 @@
 export const Config = {
-	localFileRoot: "/var/www/",
+	localFileRoot: "/var/data/",
+	localFileExportRoot: "/var/www/",
 }

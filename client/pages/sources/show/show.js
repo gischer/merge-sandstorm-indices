@@ -4,9 +4,9 @@ import R from 'ramda';
 import { Sources } from '/imports/api/sources';
 
 import './show.html';
+import './appRow';
 
 Template.ShowSource.onCreated(function() {
-  this.subscribe('sources');
 });
 
 Template.ShowSource.helpers({
@@ -23,30 +23,15 @@ Template.ShowSource.helpers({
   },
 
   isIncluded(app) {
-    return (app.include ? 'checked' : '');
+    const source = getSource();
+    const index = R.findIndex(app.appId, source.blacklist);
+    return (R.findIndex(app.appId, source.blacklist) < 0) ? 'checked' : '';
   },
 });
 
 Template.ShowSource.events({
-  "click .js-include-app-checkbox"(event) {
-    const state = event.currentTarget.checked;
-    const appId = event.currentTarget.getAttribute('data-app-id');
-    const source = getSource();
-    function setInclusion(app) {
-      if (app.appId === appId) {
-        app.include = state;
-      }
-      return app;
-    }
-    source.apps = R.map(setInclusion, source.apps);
-    Meteor.call("sources.update", source._id, source);
-    const app = R.find(R.propEq('appId', appId), source.apps);
-    if (app && app.include) {
-      app.sourceId = source._id;
-      Meteor.call('mainIndex.create', app);
-    } else if (app && !app.include) {
-      Meteor.call('mainIndex.delete', app.appId, source._id);
-    }
+  'click button#commit-source-to-main'(event) {
+    Meteor.call('mainIndex.updateFromSources');
   }
 })
 

@@ -1,18 +1,18 @@
 <template name='ShowSource'>
   <div class="container">
-    {{>Navbar sources=sources}}
     <div class='row'>
-      <h2>Apps for <b>{{source.name}}</b></h2>
+      <h2>Apps from <i>{{source.name}}</i></h2>
     </div>
-    <div class='row'>
+    <div class='row mt-2'>
+      <button class='btn btn-primary' id='commit-source-to-main'>Add the Checked Apps to the Combined Index</button>
+    </div>
+    <div class='row mt-2'>
+    </div>
+    <div class='row mt-2'>
       <table class='table'>
-        <tr><th>Select For inclusion</th><th>App name</th><th>Version</th></tr>
+        <tr><th>App name</th><th>Version</th><th>Select For inclusion</th></tr>
         {{#each app in source.apps}}
-          <tr>
-            <td><input type='checkbox' class='form-check-input js-include-app-checkbox' data-app-id={{app.appId}} {{isIncluded app}}></td>
-            <td>{{app.name}}</td>
-            <td>{{app.version}}</td>
-          </tr>
+          {{>AppRow source=source app=app}}
         {{/each}}
       </table>
     </div>

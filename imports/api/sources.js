@@ -47,10 +47,9 @@ if (Meteor.isServer) {
 
 Meteor.methods({
   "sources.create"(claimtoken, name) {
-    const id = Sources.insert({claimToken: claimtoken, name: name, downloadStatus: 'Initializing'});
+    const id = Sources.insert({claimToken: claimtoken, name: name, downloadStatus: 'Initializing', blacklist:[]});
     const source = Sources.findOne(id);
     const info = SandstormInfo.findOne();
-    console.log(info);
     getAccessToken(source, info)
     .then((response) => {
       source.accessToken = response.data.cap;

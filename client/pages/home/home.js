@@ -10,17 +10,13 @@ import './displayApp';
 
 import '/imports/ui/components/navbar';
 
-console.log('importing client/pages/home/home')
 Template.Home.onCreated(function() {
-/*
-  Meteor.call('sandstorm.initialize');
   this.autorun(() => {
     this.subscribe('sandstorm.info');
     this.subscribe('sources');
     this.subscribe('mainIndex');
     this.subscribe('files');
   })
-  */
 })
 
 Template.Home.helpers({
@@ -40,8 +36,10 @@ Template.Home.helpers({
 
   apps() {
     if (Template.instance().subscriptionsReady()) {
+      console.log('ready')
       return MainIndex.find().fetch();
     } else {
+      console.log('not ready')
       return [];
     }
   },
@@ -61,7 +59,7 @@ Template.Home.helpers({
 
 Template.Home.events({
   'click .js-update-index'(event) {
-    Meteor.call('mainIndex.updateAll')
+    Meteor.call('mainIndex.updateFromSources');
   },
 
   'click .js-fetch-all-index'(event) {
