@@ -4,64 +4,61 @@ import { promises as FSP } from 'fs';
 import { Config } from '/imports/startup/both/config';
 
 var ActiveDirectory = "/var/data/start/";  // Don't ever want this to be null
+export const BaseDir = '/var/data'
 
-export function setActiveDir(dirname) {
-  console.log(`setActiveDir ${dirname}`)
-  ActiveDirectory = Config.localFileExportRoot + dirname + '/';
-  ensureDirectoryStructure('apps');
-  ensureDirectoryStructure('images');
-  ensureDirectoryStructure('packages');
-  writeMasterIndex(ActiveDirectory);
-  writeAppIndex(ActiveDirectory);
-  writeImageIndex(ActiveDirectory);
-  writePackageIndex(ActiveDirectory);
+export async function setStartDir() {
+  await setBaseDir('start');
+  await renameToWWW('start');
+};
+
+export async function setBaseDir(tag) {
+  await ensureDirectoryStructure(`${BaseDir}/${tag}/apps`)
+  await writeMasterIndex(`${BaseDir}/${tag}`);
+  await writeAppIndex(`${BaseDir}/${tag}`);
+
+  await ensureDirectoryStructure(`${BaseDir}/${tag}/images`)
+  await writeImageIndex(`${BaseDir}/${tag}`);
+  
+  await ensureDirectoryStructure(`${BaseDir}/${tag}/packages`)
+  await writePackageIndex(`${BaseDir}/${tag}`);
+
+  await checkDirectory(`${BaseDir}/${tag}`);
 }
 
-export async function setBaseDir() {
-  ActiveDirectory = '/var/www/';
-  await ensureDirectoryStructure('apps')
-  await ensureDirectoryStructure('images');
-  await ensureDirectoryStructure('packages');
-  var files = await FSP.readdir('/var/www');
-  console.log(files);
-
-  writeMasterIndex(ActiveDirectory);
-  writeAppIndex(ActiveDirectory);
-  checkDirectory('/var/www/apps')
-  writeImageIndex(ActiveDirectory);
-  checkDirectory('/var/www/images');
-  writePackageIndex(ActiveDirectory);
-  checkDirectory('/var/www/packages');
+export async function renameToWWW(tag) {
+  await FSP.rm(`/var/www`, {force: true, recursive: true});
+  await FSP.rename(`${BaseDir}/${tag}`, '/var/www');
+  await checkDirectory('/var/www')
 }
 
 async function checkDirectory(dir) {
   const files = await FSP.readdir(dir);
   console.log(files);
 }
+
 function writeMasterIndex(dir) {
-  const contents = '<html><body>apps/\nimages/\npackages/\n</body></html>';
-  storeStringTo(contents, 'index.html');
+  const contents = `<html><body><h4>${dir}</h4><p>Created: ${Date.now()}</body></html>`;
+  storeStringTo(contents, `${dir}/index.html`);
 };
 
 function writeAppIndex(dir) {
-  const testIndex = '{"apps", [{"name": "App 1"}, {"name": "App 2"}]}';
-  const contents = '<html><body>Nothing yet.</body></html';
-  storeStringTo(contents, '/apps/index.html');
-  storeStringTo(testIndex, '/apps/index.json');
+  const testIndex = '{"apps": []}';
+  const contents = `<html><body><h4>${dir}/apps</h4></body></html`;
+  storeStringTo(contents, `${dir}/apps/index.html`);
+  storeStringTo(testIndex, `${dir}/apps/index.json`);
 };
 
 function writeImageIndex(dir) {
-  const contents = '<html><body>Image Index</body></html>';
-  storeStringTo(contents, '/images/index.html');
+  const contents = `<html><body><h4>${dir}/images</h4></body></html>`;
+  storeStringTo(contents, `${dir}/images/index.html`);
 };
 
 function writePackageIndex(dir) {
-  const contents = '<html><body>Package Index</body></html>';
-  storeStringTo(contents, '/packages/index.html');
+  const contents = `<html><body><h4>${dir}/packages</h4</body></html>`;
+  storeStringTo(contents, `${dir}/packages/index.html`);
 };
 
-export function storeStreamTo(stream, filename) {
-  const fullPath = ActiveDirectory + filename;
+export function storeStreamTo(stream, fullPath) {
   if (Meteor.isServer) {
     console.log(`Storing stream to ${fullPath}`);
     return stream.pipe(FS.createWriteStream(fullPath));
@@ -71,8 +68,7 @@ export function storeStreamTo(stream, filename) {
   return false;
 }
 
-export function storeBufferTo(buffer, filename) {
-  const fullPath = ActiveDirectory + filename;
+export function storeBufferTo(buffer, fullPath) {
   if (Meteor.isServer) {
     return new Promise((resolve, reject) => {
       try {
@@ -90,24 +86,20 @@ export function storeBufferTo(buffer, filename) {
   }
 }
 
-export function storeStringTo(string, filename) {
-  const fullPath = ActiveDirectory + filename;
+export async function storeStringTo(string, fullPath) {
   if (Meteor.isServer) {
-    FSP.open(fullPath, 'w')
-    .then((filehandle) => {
-      filehandle.write(string)
-    })
+    const filehandle = await FSP.open(fullPath, 'w');
+    await filehandle.write(string);
+    await filehandle.close();
   }
 }
 
 export function ensureDirectoryStructure(path) {
-  console.log(`ensureDirectoryStructure ${path}`)
-  const fullPath = ActiveDirectory + path
   if (Meteor.isServer) {
-    console.log(`Creating ${fullPath}`);    
-    return FSP.mkdir(fullPath, {recursive: true});
+    console.log(`Creating ${path}`);    
+    return FSP.mkdir(path, {recursive: true});
   } else {
-    console.log(`simulating recursive mkdir of ${fullPath}`);
+    console.log(`simulating recursive mkdir of ${path}`);
     return Promise.resolve(true);
   }
 }

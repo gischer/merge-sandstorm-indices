@@ -4,10 +4,11 @@ import { promises as FSP } from 'fs';
 import R from 'ramda';
 
 import { Config } from '/imports/startup/both/config';
+import { Sources } from '/imports/api/sources';
 import { Files, setStatus } from '/imports/api/files';
 import { updateProgress, processMetadata } from '/imports/api/mainIndex';
 import { CanonicalSource } from '/imports/api/sources';
-import { storeStreamTo, storeBufferTo } from '/imports/lib/store';
+import { storeStreamTo, storeBufferTo, BaseDir } from '/imports/lib/store';
 import { ASSET_READY, ASSET_HAS_ERRORS, ASSET_IN_PROGRESS } from  '/imports/lib/crunchAppStatus';
 
 
@@ -49,6 +50,7 @@ export function fetchAndStorePackage(app) {
   const packageFile = Files.findOne({appId: app._id, sourceId: app.sourceId, type: 'package'})
   setStatus(packageFile, 'Fetching');
   return new Promise((resolve, reject) => {
+    console.log(`fetching ${packageFile.path}`)
     app.fetcher.get(packageFile.path)
     .then((response) => {
       if (!response) {
@@ -58,7 +60,7 @@ export function fetchAndStorePackage(app) {
       }
       if (app.fetcher.defaults.responseType === 'stream') {
         setStatus(packageFile, ASSET_IN_PROGRESS);
-        storeStreamTo(response.data, packageFile.path)
+        storeStreamTo(response.data, `${packageFile.fileRoot}${packageFile.path}`)
         .on('finish', Meteor.bindEnvironment(() => {
           setStatus(packageFile, ASSET_READY);
           resolve(true);
@@ -71,7 +73,7 @@ export function fetchAndStorePackage(app) {
         }))
       } else {
         setStatus(packageFile, ASSET_IN_PROGRESS);
-        storeBufferTo(response.data, Config.localFileRoot + packageFile.path)
+        storeBufferTo(response.data, packageFile.fileRoot + packageFile.path)
         .then(() => {
           setStatus(packageFile, ASSET_READY);
           resolve(true);
@@ -87,8 +89,8 @@ export function fetchAndStorePackage(app) {
   })
 };
 
-export function fetchAndStoreMetadata(app) {
-  const metadataFile = Files.findOne({appId: app._id, sourceId: app.sourceId, type: 'metadata'});
+export function fetchAndStoreMetadata(app, tag) {
+  const metadataFile = Files.findOne({appId: app._id, sourceId: app.sourceId, tag: tag, type: 'metadata'});
   setStatus(metadataFile, 'Fetching');
   return new Promise((resolve, reject) => {
     app.fetcher.get(metadataFile.path).then((response) => {
@@ -98,7 +100,7 @@ export function fetchAndStoreMetadata(app) {
         reject(new Error(message));
       }
       if (app.fetcher.defaults.responseType === 'stream') {
-        storeStreamTo(response.data, metadataFile.path)
+        storeStreamTo(response.data, `${metadataFile.fileRoot}${metadataFile.path}`)
           .on('finish', Meteor.bindEnvironment(() => {
             setStatus(metadataFile, ASSET_READY);
             resolve(true);
@@ -110,7 +112,7 @@ export function fetchAndStoreMetadata(app) {
           }));
       } else {
         setStatus(metadataFile, ASSET_IN_PROGRESS);
-        storeBufferTo(JSON.stringify(response.data), Config.localFileRoot + metadataFile.path)
+        storeBufferTo(JSON.stringify(response.data), metadataFile.fileRoot + metadataFile.path)
         .then(() => {
           setStatus(metadataFile, ASSET_READY);
           resolve(true);
@@ -137,7 +139,7 @@ export function fetchAndStoreImage(app, imageFile) {
       }
       setStatus(imageFile, ASSET_IN_PROGRESS);
       if (app.fetcher.defaults.responseType === 'stream') {
-        storeStreamTo(response.data, imageFile.path)
+        storeStreamTo(response.data, `${imageFile.fileRoot}${imageFile.path}`)
         .on('finish', Meteor.bindEnvironment(() => {
           setStatus(imageFile, ASSET_READY);
           resolve(true);
@@ -149,7 +151,7 @@ export function fetchAndStoreImage(app, imageFile) {
           reject(new Error(message));
         }));
       } else {
-        storeBufferTo(response.data, imageFile.path)
+        storeBufferTo(response.data, `${imageFile.fileRoot}${imageFile.path}`)
         .then(() => {
           setStatus(imageFile, ASSET_READY);
           resolve(true);
@@ -165,11 +167,11 @@ export function fetchAndStoreImage(app, imageFile) {
   })
 };
 
-export function fetchAndStoreImages(app) {
+export function fetchAndStoreImages(app, tag) {
   return new Promise((resolve, reject) => {
-    processMetadata(app)
+    processMetadata(app, tag)
     .then((metadata) => {
-      const files = Files.find({appId: app._id, sourceId: app.sourceId, type: 'image'}).fetch();
+      const files = Files.find({appId: app._id, sourceId: app.sourceId, type: 'image', tag: tag}).fetch();
 
       function getScreenshot(promise, file) {
         console.log(`fetching ${file}`)
@@ -181,13 +183,13 @@ export function fetchAndStoreImages(app) {
 
             setStatus(file, ASSET_IN_PROGRESS);
             if (app.fetcher.defaults.responseType === 'stream') {
-              storeStreamTo(response.data, file.path)
+              storeStreamTo(response.data, `${file.fileRoot}${file.path}`)
               .on('finish', Meteor.bindEnvironment(() => {
                 setStatus(file, ASSET_READY);
                 resolve(true);
               }))
             } else {
-              storeBufferTo(response.data, Config.localFileRoot + file.path)
+              storeBufferTo(response.data, file.fileRoot + file.path)
               .then(() => {
                 setStatus(file, ASSET_READY);
                 resolve(true);
@@ -207,28 +209,25 @@ export function fetchAndStoreImages(app) {
   })
 };
 
-export function fetchAllParts(app, sandstormInfo) {
-  const source = app.source;
-
+export function fetchAllParts(app, tag, sandstormInfo) {
+  const source = Sources.findOne(app.sourceId);
+  console.log(`Fetching files for ${app.name} and storing in ${BaseDir}/${tag}`)
   // Create fetcher 
   app.fetcher = createHttpInstance(source, sandstormInfo);
 
   // Add files for this app into the Files collection
-  Files.insert({appId: app._id, sourceId: app.sourceId, appVersionNumber: app.versionNumber, type: 'package', path: `/packages/${app.packageId}`, status: 'Absent', errmsg: ""});
-  Files.insert({appId: app._id, sourceId: app.sourceId, appVersionNumber: app.versionNumber, type: 'metadata', path: `/apps/${app.appId}.json`, status: 'Absent', errmsg: ""});
+  Files.insert({appId: app._id, sourceId: app.sourceId, appVersionNumber: app.versionNumber, type: 'package', path: `/packages/${app.packageId}`, fileRoot: `${BaseDir}/${tag}`, tag: tag, status: 'Absent', errmsg: ""});
+  Files.insert({appId: app._id, sourceId: app.sourceId, appVersionNumber: app.versionNumber, type: 'metadata', path: `/apps/${app.appId}.json`, fileRoot: `${BaseDir}/${tag}`, tag: tag, status: 'Absent', errmsg: ""});
   if (app.imageId) {
-    Files.insert({appId: app._id, sourceId: app.sourceId, type: 'image', path: `/images/${app.imageId}`, status: 'Absent', errmsg: ""})
+    Files.insert({appId: app._id, sourceId: app.sourceId, type: 'image', path: `/images/${app.imageId}`, fileRoot: `${BaseDir}/${tag}`, tag: tag, status: 'Absent', errmsg: ""})
   };
 
-  const mFiles = Files.find({type: 'metadata'}).fetch();
-  R.map((file) => {console.log(file)}, mFiles);
-
   fetchAndStorePackage(app).then(() => {
-    fetchAndStoreMetadata(app)
+    fetchAndStoreMetadata(app, tag)
     .then(() => {
-      fetchAndStoreImages(app)
+      fetchAndStoreImages(app, tag)
       .then(() => {
-        updateProgress(app);
+        updateProgress(app, tag);
       })
     })
   })

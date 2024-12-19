@@ -9,11 +9,12 @@ import { SandstormInfo } from '/imports/api/sandstorm';
 import { crunchAppStatus, ASSET_READY, ASSET_HAS_ERRORS } from '/imports/lib/crunchAppStatus';
 import { selectIncludedApps } from '/imports/lib/selectIncludedApps';
 import { fetchAllParts } from '/imports/lib/fetch';
-import { setActiveDir, readFileAsString } from '/imports/lib/store';
+import { setBaseDir, readFileAsString, storeStringTo, renameToWWW, BaseDir } from '/imports/lib/store';
 
 
 
 export const MainIndex = new Mongo.Collection('index');
+export const Indices = new Mongo.Collection('indices');
 
 const IndexInProgress = {
   dirname: "default",
@@ -21,6 +22,22 @@ const IndexInProgress = {
   appsToUpdate: [],
   appsToCopy: [],
   appsReady: [],
+};
+
+export function initializeBaseDirs() {
+  setActiveDir('www');
+};
+
+export async function initializeIndex() {
+  const d = new Date();
+  const index = {};
+  index.tag = R.replace(/[T:]/g, '-', R.split('.', d.toISOString())[0]);
+  index.appsToInclude = [];
+  index.appsReady = [];
+  index.appsWithErrors = [];
+  Indices.insert(index);
+  await setBaseDir(index.tag);
+  return index.tag;
 }
 
 export function initializeUpdate() {
@@ -31,11 +48,12 @@ export function initializeUpdate() {
   IndexInProgress.appsToCopy = [];
   IndexInProgress.appsReady = [];
   IndexInProgress.appsWithErrors = [];
-  setActiveDir(IndexInProgress.dirname);
+  setBaseDir(IndexInProgress.dirname);
 }
 
-export function updateProgress(app) {
+export function updateProgress(app, tag) {
   // Calculate app status
+  const index = Indices.findOne({tag: tag});
   const status = crunchAppStatus(app);
 
   function idApp(anApp) {
@@ -43,17 +61,30 @@ export function updateProgress(app) {
   }
 
   if (status == ASSET_READY) {
-    IndexInProgress.appsToUpdate = R.reject(idApp, IndexInProgress.appsToUpdate);
-    IndexInProgress.appsToCopy = R.reject(idApp, IndexInProgress.appsToCopy);
-    IndexInProgress.appsReady.push(app);
+    index.appsToInclude = R.reject(idApp, index.appsToInclude);
+    index.appsReady.push(app);
   } else if (status == ASSET_HAS_ERRORS) {
-    IndexInProgress.appsToUpdate = R.reject(idApp, IndexInProgress.appsToUpdate);
-    IndexInProgress.appsWithErrors.push(app);
-    IndexInProgress.appsToCopy = R.reject(idApp, IndexInProgress.appsToCopy);
+    index.appsToInclude = R.reject(idApp, index.appsToUpdate);
+    index.appsWithErrors.push(app);
   }
   console.log('updated Progress for ' + app.name);
-  console.log(IndexInProgress.appsReady);
-  console.log(IndexInProgress.appsWithErrors);
+  if (index.appsToInclude.length == 0) {
+    console.log('All apps processed');
+    console.log(`There were ${index.appsWithErrors.length} apps with errors`);
+    writeIndexJson(index.appsReady, tag);
+  }
+
+}
+
+async function writeIndexJson(apps, tag) {
+  function cleanApp(app) {
+    delete app.fetcher;
+    return app;
+  }
+  const cleanedApps = R.map(cleanApp, apps);
+  const jsonString = JSON.stringify({apps: cleanedApps});
+  await storeStringTo(jsonString, `${BaseDir}/${tag}/apps/index.json`);
+  await renameToWWW(tag);
 }
 
 export function selectAppsForDownload(sourceList) {
@@ -87,28 +118,25 @@ if (Meteor.isServer) {
   });
 };
 
-// Assumes sources are up to date already.
-export function updateIndexFromSources() {
-  initializeUpdate();
+// Assumes sources are up to date
+export async function createNewIndexFromSources() {
+  const tag = await initializeIndex();
+  const index = Indices.findOne({tag: tag});
   const sources = Sources.find().fetch();
 
   function accumulateSelected(accum, source) {
     const includedApps = selectIncludedApps(source.apps, source);
-    const markedIncludedApps = R.map((app)=>{app.source = source; return app}, includedApps)
+    const markedIncludedApps = R.map((app)=>{app.sourceId = source._id; return app}, includedApps)
     return R.concat(accum, markedIncludedApps);
   };
 
-  IndexInProgress.appsToInclude = R.reduce(accumulateSelected, [], sources);
+  const appsToInclude = R.reduce(accumulateSelected, [], sources);
+  index.appsToInclude = appsToInclude;
+  Indices.update(index._id, index);
 
-  function isNeeded(app) {
-    const oldApp = MainIndex.findOne({appId: app.appId, sourceId: app.sourceId});
-    if (!oldApp) return true;
-    if (oldApp.versionNumber < app.versionNumber) return true;
-    return false;
-  }
-
-  IndexInProgress.appsToUpdate = R.filter(isNeeded, IndexInProgress.appsToInclude);
-  IndexInProgress.appsToCopy = R.reject(isNeeded, IndexInProgress.appsToInclude);
+  // For now at least, we are not going to try to reuse files that we have already downloaded.
+  // So everything gets downloaded every time.  Yes, it's wasteful, but it is also simple, 
+  // and eliminates a lot of possibilities of errors.
 
   // The next thing is a bit opaque.  What we are going to do is create a bunch of
   // callers that will call fetchAllParts on an app, and store them in an array.
@@ -116,11 +144,9 @@ export function updateIndexFromSources() {
   // in a reducer, using .then to call the next caller.
   const sandstormInfo = SandstormInfo.findOne();
   function createFetchCaller(app) {
-    return R.partial(fetchAllParts, [app, sandstormInfo]);
-  }
-  IndexInProgress.fetchCallers = R.map(createFetchCaller, IndexInProgress.appsToUpdate);
-
-  console.log('updateIndexFromSource');
+    return R.partial(fetchAllParts, [app, tag, sandstormInfo]);
+  } 
+  const fetchCallers = R.map(createFetchCaller, index.appsToInclude);
 
   // Ok, now call the fetchers
   // This runs a lot of server-side only code
@@ -128,12 +154,14 @@ export function updateIndexFromSources() {
     function promiseReducer(promise, caller) {
       return promise.then(caller);
     }
-    //R.reduce(promiseReducer, Promise.resolve(true), IndexInProgress.fetchCallers);
-    IndexInProgress.fetchCallers[0]();
+    //R.reduce(promiseReducer, Promise.resolve(true), fetchCallers);
+    //fetchCallers[0]();
+    console.log(`fetching ${index.appsToInclude[0].name}`)
+    fetchAllParts(index.appsToInclude[0], tag, sandstormInfo);
   };
-}
+};
  
-export function processMetadata(app) {
+export function processMetadata(app, tag) {
   if (Meteor.isServer) {
     const metadataFile = Files.findOne({appId: app._id, appVersionNumber: app.versionNumber, sourceId: app.sourceId, type: 'metadata'});
     if (!metadataFile) {
@@ -146,7 +174,8 @@ export function processMetadata(app) {
       .then((string) => {
         const metadata = JSON.parse(string);
         function addScreenshot(screenshot) {
-          Files.insert({appId: app._id, appVersionNumber: app.versionNumber, sourceId: app.sourceId, type: 'image', path: `/images/${screenshot.imageId}`, status: 'Absent', error: ""})
+          console.log(`Adding screenshot with fileRoot ${BaseDir}/${tag}`)
+          Files.insert({appId: app._id, appVersionNumber: app.versionNumber, sourceId: app.sourceId, type: 'image', path: `/images/${screenshot.imageId}`, fileRoot: `${BaseDir}/${tag}`, tag: tag, status: 'Absent', error: ""})
         };
 
 
@@ -214,6 +243,10 @@ Meteor.methods({
 
   "mainIndex.updateFromSources"() {
     updateIndexFromSources();
+  },
+
+  "mainIndex.createNewIndexFromSources"() {
+    createNewIndexFromSources();
   },
 
   "mainIndex.check"(appId) {
